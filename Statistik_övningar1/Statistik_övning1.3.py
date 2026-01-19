@@ -14,7 +14,7 @@ comb_8_7 = math.comb(8, 7)
 
 print("Fakulteter:")
 print("9! =", fak_9)
-print("6! =", fak_9)
+print("6! =", fak_6)
 
 print("\nPermutationer:")
 print("7P3 =", perm_7_3)
