@@ -2,7 +2,7 @@ import numpy as np
 from scipy.stats import f, t
 
 class LinearRegression:
-    def __init__(self, confidence_level = 0.95):
+    def __init__(self, confidence_level=None):
         self.b = None
         self.d = None
         self.n = None
@@ -26,20 +26,18 @@ class LinearRegression:
         self.feature_names = None
     
     #One-hot encodes categorical columns and returns encoded matrix + feature names
-    def one_hot_encode(self, X, categorical_cols, feature_names = None, drop_first = True):
-        X = np.array(X, dtype = object)
+    def one_hot_encode(self, X, categorical_cols, feature_names=None, drop_first=True):
+        X = np.array(X, dtype=object)
         numeric_cols = [i for i in range(X.shape[1]) if i not in categorical_cols]
         X_numeric = X[:, numeric_cols].astype(float)
-        new_features = []
-        new_features_names = []
-        new_features.append(X_numeric)
-        
-        if feature_names is not None:
-            for idx in numeric_cols:
-                new_features_names.append(feature_names[idx])
+
+        new_features = [X_numeric]
+        new_names = []
+
+        if feature_names is None:
+            new_names = [f"X{i}" for i in numeric_cols]
         else:
-            for idx in numeric_cols:
-                new_features_names.append(f"X{idx}")
+            new_names = [feature_names[i] for i in numeric_cols]
 
         for col in categorical_cols:
             categories = np.unique(X[:, col])
@@ -48,18 +46,18 @@ class LinearRegression:
             for cat in categories:
                 dummy = (X[:, col] == cat).astype(float).reshape(-1, 1)
                 new_features.append(dummy)
-                if feature_names is not None:
-                    new_features_names.append(f"{feature_names[col]}_{cat}")
+                if feature_names is None:
+                    new_names.append(f"X{col}_{cat}")
                 else:
-                    new_features_names.append(f"X{col}_{cat}")
+                    new_names.append(f"{feature_names[col]}_{cat}")
 
         X_encoded = np.hstack(new_features)
-        return X_encoded, new_features_names
+        return X_encoded, new_names
     
     #Fits the linear regression model using OLS: b = (X^T X)^(-1) X^T y
-    def fit(self, X, y, feature_names = None):
-        X = np.array(X, dtype = float)
-        y = np.array(y, dtype = float)
+    def fit(self, X, y, feature_names=None):
+        X = np.array(X, dtype=float)
+        y = np.array(y, dtype=float)
 
         self.n = X.shape[0]
         self.d = X.shape[1]
@@ -70,7 +68,7 @@ class LinearRegression:
             self.feature_names = ["Intercept"] + [f"X{i}" for i in range(self.d)]
         else:
             self.feature_names = ["Intercept"] + list(feature_names)
-        
+
         XtX = self.X1.T @ self.X1
         Xty = self.X1.T @ y
 
@@ -78,42 +76,44 @@ class LinearRegression:
         self.b = self.XtX_inv @ Xty
         self.y_hat = self.X1 @ self.b
         self.residuals = self.y - self.y_hat
-        self.SSE = np.sum(self.residuals ** 2)
-        self.Syy = np.sum((self.y - np.mean(self.y)) ** 2)
+
+        self.SSE = np.sum(self.residuals**2)
+        self.Syy = np.sum((self.y - np.mean(self.y))**2)
         self.SSR = self.Syy - self.SSE
+
         self.sigma2 = self.SSE / (self.n - self.d - 1)
         self.std_dev = np.sqrt(self.sigma2)
+
         self.C = self.XtX_inv * self.sigma2
         self.standard_errors = np.sqrt(np.diag(self.C))
-        self.t_values = self.b / self.standard_errors
+
         df = self.n - self.d - 1
+        self.t_values = self.b / self.standard_errors
         self.p_values = 2 * t.sf(np.abs(self.t_values), df)
+
         self.F_value = (self.SSR / self.d) / self.sigma2
         self.F_p_value = f.sf(self.F_value, self.d, df)
+
         return self.b
     
     #Predicts new values using the fitted regression model
     def predict(self, X):
-        X = np.array(X, dtype = float)
-        n = X.shape[0]
-
-        X1 = np.column_stack((np.ones(n), X))
+        X = np.array(X, dtype=float)
+        X1 = np.column_stack((np.ones(X.shape[0]), X))
         return X1 @ self.b
     
     #Computes SSE for the model or for new data
     def sse(self, X = None, y = None):
-        if X is None and y is None:
+        if X is None:
             return self.SSE
-        y = np.array(y, dtype = float)
-        y_hat = self.predict(X)
-        return np.sum((y - y_hat) ** 2)
+        y = np.array(y, dtype=float)
+        return np.sum((y - self.predict(X))**2)
     
     #Computes the unbiased sample variance: sigma^2 = SSE / (n - d - 1)
     def sample_variance(self, X = None, y = None):
-        if X is None and y is None:
+        if X is None:
             return self.sigma2
-        SSE = self.sse(X, y)
-        return SSE / (self.n - self.d - 1)
+        return self.sse(X, y) / (self.n - self.d - 1)
     
     #Computes the standard deviation of the residuals
     def standard_deviation(self, X = None, y = None):
@@ -121,12 +121,9 @@ class LinearRegression:
     
     #Computes RMSE for the model or new data
     def rmse(self, X = None, y = None):
-        if X is None and y is None:
-            mse = self.SSE / self.n
-            return np.sqrt(mse)
-        SSE = self.sse(X, y)
-        mse = SSE / self.n
-        return np.sqrt(mse)
+        if X is None:
+            return np.sqrt(self.SSE / self.n)
+        return np.sqrt(self.sse(X, y) / self.n)
     
     #Computes R^2. The coefficient of determination
     def r2(self):
@@ -143,7 +140,7 @@ class LinearRegression:
     #Computes confidence intervals for all regression coefficients
     def confidence_intervals(self, confidence_level = None):
         if confidence_level is None:
-            confidence_level = self.confidence_level
+            raise ValueError("You must specify a confidence level (e.g. 0.90, 0.95).")
 
         alpha = 1 - confidence_level
         df = self.n - self.d - 1
@@ -158,18 +155,17 @@ class LinearRegression:
     
     #Computes Pearson correlation matrix between all columns in X
     def pearson_matrix(self, X):
-        X = np.array(X, dtype=float)
-        return np.corrcoef(X, rowvar=False)
+        return np.corrcoef(np.array(X, dtype=float), rowvar=False)
 
     #Prints a full statistical summary of the fitted regression model
-    def summary(self):
+    def summary(self, confidence_level = None):
         print("\nLinear Regression Summary")
         print(f"n (samples): {self.n}")
         print(f"d (features): {self.d}")
 
         print("Coefficients:")
-        for i, name in enumerate(self.feature_names):
-            print(f"{name:25s} {self.b[i]:12.6f}")
+        for name, coef in zip(self.feature_names, self.b):
+            print(f"{name:25s} {coef:12.6f}")
         
         print(f"SSE: {self.SSE:.6f}")
         print(f"Sample variance (sigma^2): {self.sigma2:.6f}")
@@ -189,7 +185,8 @@ class LinearRegression:
         print(f"F = {F_val:.6f}")
         print(f"p-value = {F_p:.6f}")
 
-        ci = self.confidence_intervals()
-        print(f"{int(self.confidence_level*100)}% confidence intervals:")
-        for i, name in enumerate(self.feature_names):
-            print(f"{name:25s}: [{ci[i][0]:.6f}, {ci[i][1]:.6f}]")
+        if confidence_level is not None:
+            ci = self.confidence_intervals(confidence_level)
+            print(f"{int(confidence_level*100)}% confidence intervals:")
+            for name, (lo, hi) in zip(self.feature_names, ci):
+                print(f"{name:25s}: [{lo:.6f}, {hi:.6f}]")
