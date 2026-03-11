@@ -205,6 +205,7 @@ class LinearRegression:
         print(f"Standard deviation: {self.std_dev:.6f}")
         print(f"RMSE: {self.rmse():.6f}")
         print(f"R^2: {self.r2():.6f}")
+        print(f"Adjusted R^2: {self.adjusted_r2():.6f}")
 
         print("t-test results (individual significance):")
         print(f"{'Feature':25s} {'beta':>12s} {'std_err':>12s} {'t':>12s} {'p-value':>12s}")
