@@ -129,6 +129,10 @@ class LinearRegression:
     def r2(self):
         return 1 - (self.SSE / self.Syy)
     
+    def adjusted_r2(self):
+        r2 = self.r2()
+        return 1 - (1 - r2) * (self.n - 1) / (self.n - self.d - 1)
+
     #Returns F-statistics and p-value for overall regression significance 
     def regression_significance(self):
         return self.F_value, self.F_p_value
@@ -156,6 +160,35 @@ class LinearRegression:
     #Computes Pearson correlation matrix between all columns in X
     def pearson_matrix(self, X):
         return np.corrcoef(np.array(X, dtype=float), rowvar=False)
+    
+    def vif(self, X):
+        import numpy as np
+
+        X = np.array(X, dtype=float)
+        n, d = X.shape
+        vif_values = []
+
+        for j in range(d):
+
+            y_j = X[:, j]
+
+            X_other = np.delete(X, j, axis=1)
+
+            X_design = np.column_stack((np.ones(n), X_other))
+
+            beta = np.linalg.inv(X_design.T @ X_design) @ (X_design.T @ y_j)
+
+            y_hat = X_design @ beta
+
+            sse = np.sum((y_j - y_hat) ** 2)
+
+            syy = np.sum((y_j - np.mean(y_j)) ** 2)
+
+            r2_j = 1 - sse / syy
+
+            vif_values.append(1 / (1 - r2_j))
+
+        return vif_values
 
     #Prints a full statistical summary of the fitted regression model
     def summary(self, confidence_level = None):
